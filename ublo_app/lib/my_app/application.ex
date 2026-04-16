@@ -8,8 +8,7 @@ defmodule MyApp.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: MyApp.Worker.start_link(arg)
-      # {MyApp.Worker, arg}
+      MyApp.Repo
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
