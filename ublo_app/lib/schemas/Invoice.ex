@@ -1,5 +1,6 @@
 defmodule Invoice do
   use Ecto.Schema
+  import Ecto.Changeset
 
   ## Module attributes start ##
   @state MyApp.InvoiceConstants.state()
@@ -28,5 +29,35 @@ defmodule Invoice do
     field(:start_term, :string)
     field(:end_term, :string)
     timestamps()
+  end
+
+  @cast_fields [
+    :number,
+    :date,
+    :customer_name,
+    :total,
+    :pdf_path,
+    :exported,
+    :foreign_id,
+    :provider,
+    :failure_reason,
+    :name,
+    :description,
+    :mime_type,
+    :state,
+    :type,
+    :start_date,
+    :end_date,
+    :terms,
+    :start_term,
+    :end_term
+  ]
+
+  @required [:number, :date, :customer_name, :total, :provider, :state, :type]
+
+  def changeset(invoice, params \\ %{}) do
+    invoice
+    |> cast(params, @cast_fields)
+    |> validate_required(@required)
   end
 end

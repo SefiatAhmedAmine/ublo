@@ -4,16 +4,19 @@ defmodule InvoiceRepoTest do
   alias MyApp.Repo
 
   test "inserts an invoice through the Sandbox pool" do
+    attrs = %{
+      number: "INV-#{System.unique_integer([:positive])}",
+      date: Date.utc_today(),
+      customer_name: "Sandbox customer",
+      total: Decimal.new("12.34"),
+      provider: :digital_ocean,
+      state: :draft,
+      type: :custom_invoice_notice
+    }
+
     invoice =
-      %Invoice{
-        number: "INV-#{System.unique_integer([:positive])}",
-        date: Date.utc_today(),
-        customer_name: "Sandbox customer",
-        total: Decimal.new("12.34"),
-        provider: :digital_ocean,
-        state: :draft,
-        type: :custom_invoice_notice
-      }
+      %Invoice{}
+      |> Invoice.changeset(attrs)
       |> Repo.insert!()
 
     assert invoice.id
