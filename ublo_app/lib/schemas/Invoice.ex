@@ -1,6 +1,7 @@
 defmodule Invoice do
   use Ecto.Schema
   import Ecto.Changeset
+  import Ecto.Query
 
   ## Module attributes start ##
   @state MyApp.InvoiceConstants.state()
@@ -59,5 +60,11 @@ defmodule Invoice do
     invoice
     |> cast(params, @cast_fields)
     |> validate_required(@required)
+  end
+
+  def get_invoices_not_exported_by_state_and_type(state, type) do
+    MyApp.Repo.all(
+      from(i in Invoice, where: i.state == ^state and i.type == ^type and i.exported == false)
+    )
   end
 end
