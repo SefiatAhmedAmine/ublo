@@ -1,5 +1,7 @@
 import Config
 
+config :ublo_app, :pennylane_api_key, "test-placeholder-never-calls-real-api"
+
 config :ublo_app, MyApp.Repo,
   database: "ublo_test_db",
   hostname: "localhost",

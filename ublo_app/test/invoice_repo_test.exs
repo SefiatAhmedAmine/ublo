@@ -1,7 +1,9 @@
 defmodule InvoiceRepoTest do
   use MyApp.DataCase, async: true
 
+  alias MyApp.InvoiceService
   alias MyApp.Repo
+  alias MyApp.Schemas.Invoice
 
   test "inserts an invoice through the Sandbox pool" do
     attrs = %{
@@ -21,6 +23,6 @@ defmodule InvoiceRepoTest do
 
     assert invoice.id
     assert invoice.exported == false
-    assert Repo.get(Invoice, invoice.id)
+    assert InvoiceService.get(invoice.id)
   end
 end

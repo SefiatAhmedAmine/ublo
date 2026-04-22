@@ -1,4 +1,5 @@
 defmodule InvoiceChangesetTest do
+  alias MyApp.Schemas.Invoice
   use MyApp.DataCase, async: true
 
   describe "changeset/2" do

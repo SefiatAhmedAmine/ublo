@@ -1,7 +1,9 @@
 defmodule InvoiceSelectionTest do
   use MyApp.DataCase, async: true
 
+  alias MyApp.InvoiceService
   alias MyApp.Repo
+  alias MyApp.Schemas.Invoice
 
   describe "get_invoices_not_exported_by_state_and_type/2" do
     test "export candidates: only completed custom_invoice_notice with exported false" do
@@ -17,7 +19,7 @@ defmodule InvoiceSelectionTest do
       insert_invoice!(%{state: :completed, type: :custom_invoice_notice, exported: true})
 
       result =
-        Invoice.get_invoices_not_exported_by_state_and_type(
+        InvoiceService.get_invoices_not_exported_by_state_and_type(
           :completed,
           :custom_invoice_notice
         )
@@ -45,7 +47,7 @@ defmodule InvoiceSelectionTest do
         })
 
       result =
-        Invoice.get_invoices_not_exported_by_state_and_type(
+        InvoiceService.get_invoices_not_exported_by_state_and_type(
           :completed,
           :custom_invoice_notice
         )
@@ -62,10 +64,10 @@ defmodule InvoiceSelectionTest do
         insert_invoice!(%{state: :completed, type: :rent_receipt, exported: false})
 
       draft_notices =
-        Invoice.get_invoices_not_exported_by_state_and_type(:draft, :custom_invoice_notice)
+        InvoiceService.get_invoices_not_exported_by_state_and_type(:draft, :custom_invoice_notice)
 
       completed_receipts =
-        Invoice.get_invoices_not_exported_by_state_and_type(:completed, :rent_receipt)
+        InvoiceService.get_invoices_not_exported_by_state_and_type(:completed, :rent_receipt)
 
       assert Enum.map(draft_notices, & &1.id) == [draft_notice.id]
       assert Enum.map(completed_receipts, & &1.id) == [completed_receipt.id]
