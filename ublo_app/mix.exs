@@ -27,7 +27,9 @@ defmodule MyApp.MixProject do
   defp deps do
     [
       {:postgrex, "~> 0.22.0"},
-      {:ecto_sql, "~> 3.13"}
+      {:ecto_sql, "~> 3.13"},
+      {:oban, "~> 2.19"},
+      {:jason, "~> 1.4"}
     ]
   end
 end

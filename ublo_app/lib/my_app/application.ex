@@ -8,7 +8,8 @@ defmodule MyApp.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      MyApp.Repo
+      MyApp.Repo,
+      {Oban, Application.fetch_env!(:ublo_app, Oban)}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
