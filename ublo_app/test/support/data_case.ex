@@ -6,6 +6,8 @@ defmodule MyApp.DataCase do
     quote do
       alias MyApp.Repo
 
+      use Oban.Testing, repo: MyApp.Repo
+
       import Ecto
       import Ecto.Changeset
       import Ecto.Query

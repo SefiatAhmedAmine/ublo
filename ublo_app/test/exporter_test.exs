@@ -2,6 +2,7 @@ defmodule ExporterTest do
   use MyApp.DataCase, async: true
 
   alias MyApp.Exporter
+  alias MyApp.InvoiceErrors
   alias MyApp.InvoiceService
   alias MyApp.Repo
   alias MyApp.Schemas.Invoice
@@ -9,36 +10,40 @@ defmodule ExporterTest do
   describe "fetch_exportable_invoice/1" do
     test "rejects persisted invoice without id (unsaved struct)" do
       assert InvoiceService.fetch_exportable_invoice(%Invoice{}) ==
-               {:error, "Invoice ID is required"}
+               {:error, InvoiceErrors.invoice_id_required()}
     end
 
     test "rejects unknown id" do
       assert InvoiceService.fetch_exportable_invoice(%Invoice{id: 9_999_999_999}) ==
-               {:error, "Invoice not found"}
+               {:error, InvoiceErrors.invoice_not_found()}
     end
 
     test "rejects when already exported" do
       inv = insert_invoice!(%{exported: true, pdf_path: "/any"})
 
       assert InvoiceService.fetch_exportable_invoice(inv) ==
-               {:error, "Invoice is already exported"}
+               {:error, InvoiceErrors.invoice_already_exported()}
     end
 
     test "rejects when state is not completed" do
       inv = insert_invoice!(%{state: :draft, pdf_path: "/x"})
-      assert InvoiceService.fetch_exportable_invoice(inv) == {:error, "Invoice is not completed"}
+
+      assert InvoiceService.fetch_exportable_invoice(inv) ==
+               {:error, InvoiceErrors.invoice_not_completed()}
     end
 
     test "rejects when type is not custom_invoice_notice" do
       inv = insert_invoice!(%{type: :rent_receipt, pdf_path: "/x"})
 
       assert InvoiceService.fetch_exportable_invoice(inv) ==
-               {:error, "Invoice is not a custom invoice notice"}
+               {:error, InvoiceErrors.invoice_not_custom_notice()}
     end
 
     test "rejects when pdf_path is missing" do
       inv = insert_invoice!(%{pdf_path: nil})
-      assert InvoiceService.fetch_exportable_invoice(inv) == {:error, "PDF path is required"}
+
+      assert InvoiceService.fetch_exportable_invoice(inv) ==
+               {:error, InvoiceErrors.pdf_path_required()}
     end
 
     test "accepts eligible row from DB" do
@@ -68,17 +73,19 @@ defmodule ExporterTest do
       inv =
         insert_invoice!(%{pdf_path: "/no/such/file-#{System.unique_integer([:positive])}.pdf"})
 
-      assert Exporter.export_invoice(inv) == {:error, "PDF file not found"}
+      assert Exporter.export_invoice(inv) == {:error, InvoiceErrors.pdf_file_not_found()}
       from_db = InvoiceService.get!(inv.id)
       assert from_db.exported == false
-      assert from_db.failure_reason == "PDF file not found"
+      assert from_db.failure_reason == InvoiceErrors.pdf_file_not_found()
     end
 
     test "returns error from fetch_exportable_invoice without touching file" do
       inv = insert_invoice!(%{state: :draft, pdf_path: write_temp_pdf!()})
 
-      assert Exporter.export_invoice(inv) == {:error, "Invoice is not completed"}
-      assert InvoiceService.get!(inv.id).failure_reason == "Invoice is not completed"
+      assert Exporter.export_invoice(inv) == {:error, InvoiceErrors.invoice_not_completed()}
+
+      assert InvoiceService.get!(inv.id).failure_reason ==
+               InvoiceErrors.invoice_not_completed()
     end
 
     test "success clears failure_reason after a previous failure" do
@@ -89,7 +96,8 @@ defmodule ExporterTest do
           pdf_path: "/no/such/file-#{System.unique_integer([:positive])}.pdf"
         })
 
-      assert {:error, "PDF file not found"} = Exporter.export_invoice(inv)
+      assert {:error, msg} = Exporter.export_invoice(inv)
+      assert msg == InvoiceErrors.pdf_file_not_found()
 
       inv2 =
         inv

@@ -8,6 +8,7 @@ defmodule MyApp.InvoiceService do
 
   import Ecto.Query
 
+  alias MyApp.InvoiceErrors
   alias MyApp.Repo
   alias MyApp.Schemas.Invoice
 
@@ -24,24 +25,25 @@ defmodule MyApp.InvoiceService do
   end
 
   @doc "Returns `{:ok, db_invoice}` when DB preconditions for export hold, else `{:error, msg}`."
-  def fetch_exportable_invoice(%Invoice{id: nil}), do: {:error, "Invoice ID is required"}
+  def fetch_exportable_invoice(%Invoice{id: nil}),
+    do: {:error, InvoiceErrors.invoice_id_required()}
 
   def fetch_exportable_invoice(%Invoice{} = invoice) do
     case Repo.get(Invoice, invoice.id) do
       nil ->
-        {:error, "Invoice not found"}
+        {:error, InvoiceErrors.invoice_not_found()}
 
       %Invoice{exported: true} ->
-        {:error, "Invoice is already exported"}
+        {:error, InvoiceErrors.invoice_already_exported()}
 
       %Invoice{state: state} when state != :completed ->
-        {:error, "Invoice is not completed"}
+        {:error, InvoiceErrors.invoice_not_completed()}
 
       %Invoice{type: type} when type != :custom_invoice_notice ->
-        {:error, "Invoice is not a custom invoice notice"}
+        {:error, InvoiceErrors.invoice_not_custom_notice()}
 
       %Invoice{pdf_path: path} when path in [nil, ""] ->
-        {:error, "PDF path is required"}
+        {:error, InvoiceErrors.pdf_path_required()}
 
       %Invoice{} = db ->
         {:ok, db}

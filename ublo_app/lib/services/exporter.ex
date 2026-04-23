@@ -1,6 +1,7 @@
 defmodule MyApp.Exporter do
   @moduledoc false
 
+  alias MyApp.InvoiceErrors
   alias MyApp.InvoiceService
   alias MyApp.PennylaneClient
   alias MyApp.Schemas.Invoice
@@ -40,8 +41,8 @@ defmodule MyApp.Exporter do
   defp verify_pdf_readable(path) do
     case File.read(path) do
       {:ok, _} -> :ok
-      {:error, :enoent} -> {:error, "PDF file not found"}
-      {:error, reason} -> {:error, "Cannot read PDF: #{inspect(reason)}"}
+      {:error, :enoent} -> {:error, InvoiceErrors.pdf_file_not_found()}
+      {:error, reason} -> {:error, InvoiceErrors.cannot_read_pdf(reason)}
     end
   end
 
