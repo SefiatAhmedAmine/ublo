@@ -90,6 +90,26 @@ defmodule MyApp.InvoiceCompleteAndEnqueueTest do
       assert {:error, :invalid_state} = InvoiceService.validate_invoice_and_enqueue_export(inv.id)
       refute_enqueued(worker: InvoiceExportWorker)
     end
+
+    test "second validate while export job still incomplete skips duplicate" do
+      path = write_temp_pdf!()
+
+      inv =
+        insert_invoice!(%{
+          state: :completed,
+          pdf_path: path
+        })
+
+      assert {:ok, {:scheduled, _, job1}} =
+               InvoiceService.validate_invoice_and_enqueue_export(inv.id)
+
+      refute job1.conflict? == true
+
+      assert {:ok, {:skipped, :already_enqueued}} =
+               InvoiceService.validate_invoice_and_enqueue_export(inv.id)
+
+      assert_enqueued(worker: InvoiceExportWorker, args: %{invoice_id: inv.id})
+    end
   end
 
   defp insert_invoice!(overrides) do

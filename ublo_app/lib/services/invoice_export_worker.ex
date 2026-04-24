@@ -9,11 +9,22 @@ defmodule MyApp.InvoiceExportWorker do
   ## Enqueue from IEx
       iex -S mix
       MyApp.InvoiceExportWorker.enqueue_export(42)
+
+  Jobs are **unique** per `invoice_id` while an export job is still *incomplete* (Oban states
+  `available`, `scheduled`, `executing`, `retryable`, `suspended`). A second insert returns
+  `{:ok, %Oban.Job{conflict?: true}}` with the existing job. Prefer
+  `InvoiceService.validate_invoice_and_enqueue_export/1` for domain callers so skips are explicit.
   """
 
   use Oban.Worker,
     queue: :invoices,
-    max_attempts: 5
+    max_attempts: 5,
+    unique: [
+      period: :infinity,
+      fields: [:worker, :args],
+      keys: [:invoice_id],
+      states: :incomplete
+    ]
 
   alias MyApp.Exporter
   alias MyApp.InvoiceErrors

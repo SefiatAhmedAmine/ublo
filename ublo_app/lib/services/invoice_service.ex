@@ -56,11 +56,10 @@ defmodule MyApp.InvoiceService do
   transaction que la mise à jour facture.
 
   Retours:
-  - `{:ok, {:scheduled, %Invoice{}, %Oban.Job{}}}` — job inséré.
-  - `{:ok, {:skipped, :already_exported}}` — rien à faire.
+  - `{:ok, {:scheduled, %Invoice{}, %Oban.Job{}}}` — nouveau job inséré.
+  - `{:ok, {:skipped, :already_exported}}` — facture déjà exportée.
+  - `{:ok, {:skipped, :already_enqueued}}` — un job d’export **incomplet** existe déjà pour cette facture (unicité Oban).
   - `{:error, reason}` — facture absente, état incompatible, type / PDF invalides, ou échec insert job.
-
-  La protection « double appel » (un seul job effectif) arrive au checkpoint suivant.
   """
   def validate_invoice_and_enqueue_export(invoice_id) when is_integer(invoice_id) do
     Multi.new()
@@ -129,7 +128,11 @@ defmodule MyApp.InvoiceService do
         {:ok, skipped}
 
       {:ok, %{trigger: {:enqueue, invoice}, export_job: %Oban.Job{} = job}} ->
-        {:ok, {:scheduled, invoice, job}}
+        if job.conflict? do
+          {:ok, {:skipped, :already_enqueued}}
+        else
+          {:ok, {:scheduled, invoice, job}}
+        end
 
       {:error, _failed_op, reason, _changes} ->
         {:error, reason}
