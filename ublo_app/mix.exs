@@ -29,7 +29,10 @@ defmodule MyApp.MixProject do
       {:postgrex, "~> 0.22.0"},
       {:ecto_sql, "~> 3.13"},
       {:oban, "~> 2.19"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:req, "~> 0.5"},
+      {:mox, "~> 1.0", only: :test},
+      {:bypass, "~> 2.1", only: :test}
     ]
   end
 end
