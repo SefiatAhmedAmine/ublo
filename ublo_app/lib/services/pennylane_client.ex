@@ -20,7 +20,11 @@ defmodule MyApp.PennylaneClient do
   def send_invoice(_pdf_path, _api_key), do: {:error, :invalid_arguments}
 
   defp request_upload(pdf_path, api_key) do
-    case Req.post(url: endpoint(), auth: {:bearer, api_key}, form_multipart: multipart_fields(pdf_path)) do
+    case Req.post(
+           url: endpoint(),
+           auth: {:bearer, api_key},
+           form_multipart: multipart_fields(pdf_path)
+         ) do
       {:ok, %Req.Response{status: status, body: body}} when status in [200, 201] ->
         {:ok, normalize_body(body)}
 
