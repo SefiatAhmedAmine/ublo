@@ -3,18 +3,17 @@ defmodule MyApp.Exporter do
 
   alias MyApp.InvoiceErrors
   alias MyApp.InvoiceService
-  alias MyApp.PennylaneClient
   alias MyApp.Schemas.Invoice
 
   @doc """
-  Export synchrone : vérifie la facture, lit le PDF, passe par l’étape Pennylane
-  (no-op pour l’instant), puis persiste le succès ou une `failure_reason`.
+  Export synchrone : vérifie la facture, lit le PDF, envoie vers Pennylane,
+  puis persiste le succès ou une `failure_reason`.
   """
   def export_invoice(%Invoice{} = invoice) do
     result =
       with {:ok, db_invoice} <- InvoiceService.fetch_exportable_invoice(invoice),
            :ok <- verify_pdf_readable(db_invoice.pdf_path),
-           :ok <- PennylaneClient.send_invoice(db_invoice.name, api_key()),
+           {:ok, _response} <- send_to_pennylane(db_invoice.pdf_path),
            {:ok, exported} <- persist_success(db_invoice) do
         {:ok, exported}
       else
@@ -23,6 +22,9 @@ defmodule MyApp.Exporter do
 
         {:error, reason} when is_binary(reason) ->
           {:error, reason}
+
+        {:error, reason} ->
+          {:error, pennylane_error_message(reason)}
 
         other ->
           {:error, format_failure_reason(other)}
@@ -97,4 +99,41 @@ defmodule MyApp.Exporter do
   defp api_key do
     Application.fetch_env!(:ublo_app, :pennylane_api_key)
   end
+
+  defp send_to_pennylane(pdf_path) do
+    client_module().send_invoice(pdf_path, api_key())
+  end
+
+  defp client_module do
+    Application.get_env(:ublo_app, :pennylane_client, MyApp.PennylaneClient)
+  end
+
+  defp pennylane_error_message(:missing_api_key), do: "Pennylane API key is missing"
+  defp pennylane_error_message(:invalid_arguments), do: "Invalid Pennylane request arguments"
+
+  defp pennylane_error_message({:bad_request, _}),
+    do: "Pennylane rejected the request payload"
+
+  defp pennylane_error_message({:unauthorized, _}), do: "Pennylane authorization failed"
+  defp pennylane_error_message({:forbidden, _}), do: "Pennylane access forbidden"
+
+  defp pennylane_error_message({:invalid_payload, _}),
+    do: "Pennylane invoice payload is invalid"
+
+  defp pennylane_error_message({:transient_network, _}),
+    do: "Pennylane network error"
+
+  defp pennylane_error_message({:transient_http_error, status, _}),
+    do: "Pennylane temporary server error (#{status})"
+
+  defp pennylane_error_message({:unexpected_status, status, _}),
+    do: "Pennylane unexpected status (#{status})"
+
+  defp pennylane_error_message({:transport_error, _}),
+    do: "Pennylane transport error"
+
+  defp pennylane_error_message({:unexpected_error, _}),
+    do: "Pennylane unexpected error"
+
+  defp pennylane_error_message(other), do: format_failure_reason(other)
 end

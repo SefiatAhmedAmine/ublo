@@ -56,6 +56,21 @@ defmodule ExporterTest do
   end
 
   describe "export_invoice/1" do
+    test "calls configured Pennylane client with invoice pdf path" do
+      path = write_temp_pdf!()
+      inv = insert_invoice!(%{pdf_path: path})
+      api_key = Application.fetch_env!(:ublo_app, :pennylane_api_key)
+
+      Mox.expect(MyApp.PennylaneClientMock, :send_invoice, fn received_path, received_key ->
+        assert received_path == path
+        assert received_key == api_key
+        {:ok, %{"id" => "pl-mock"}}
+      end)
+
+      assert {:ok, %Invoice{} = updated} = Exporter.export_invoice(inv)
+      assert updated.exported == true
+    end
+
     test "marks exported and sets stub foreign_id when PDF exists" do
       path = write_temp_pdf!()
       inv = insert_invoice!(%{pdf_path: path})
