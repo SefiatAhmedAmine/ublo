@@ -2,6 +2,7 @@ defmodule ExporterTest do
   use MyApp.DataCase, async: true
 
   alias MyApp.Exporter
+  alias MyApp.InvoiceExportService
   alias MyApp.InvoiceErrors
   alias MyApp.InvoiceService
   alias MyApp.Repo
@@ -89,6 +90,13 @@ defmodule ExporterTest do
       from_db = InvoiceService.get!(inv.id)
       assert from_db.exported == true
       assert from_db.foreign_id == "mocked"
+
+      assert [attempt] = InvoiceExportService.list_for_invoice(inv.id)
+      assert attempt.status == :success
+      assert attempt.foreign_id == "mocked"
+      assert attempt.attempts == 1
+      assert attempt.error == nil
+      assert attempt.exported_at
     end
 
     test "records failure when Pennylane success response has no id" do
@@ -105,6 +113,11 @@ defmodule ExporterTest do
       from_db = InvoiceService.get!(inv.id)
       assert from_db.exported == false
       assert from_db.failure_reason == "Pennylane response is missing invoice id"
+
+      assert [attempt] = InvoiceExportService.list_for_invoice(inv.id)
+      assert attempt.status == :failed
+      assert attempt.attempts == 1
+      assert attempt.error == "Pennylane response is missing invoice id"
     end
 
     test "returns error when PDF path is set but file is missing" do
@@ -115,6 +128,11 @@ defmodule ExporterTest do
       from_db = InvoiceService.get!(inv.id)
       assert from_db.exported == false
       assert from_db.failure_reason == InvoiceErrors.pdf_file_not_found()
+
+      assert [attempt] = InvoiceExportService.list_for_invoice(inv.id)
+      assert attempt.status == :failed
+      assert attempt.attempts == 1
+      assert attempt.error == InvoiceErrors.pdf_file_not_found()
     end
 
     test "returns error from fetch_exportable_invoice without touching file" do
@@ -145,6 +163,13 @@ defmodule ExporterTest do
       assert {:ok, %Invoice{} = ok} = Exporter.export_invoice(inv2)
       assert ok.exported == true
       assert ok.failure_reason == nil
+
+      assert [failed, success] = InvoiceExportService.list_for_invoice(inv.id)
+      assert failed.status == :failed
+      assert failed.attempts == 1
+      assert success.status == :success
+      assert success.attempts == 2
+      assert success.foreign_id == "mocked"
     end
   end
 

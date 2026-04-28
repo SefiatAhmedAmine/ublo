@@ -1,6 +1,7 @@
 defmodule MyApp.Exporter do
   @moduledoc false
 
+  alias MyApp.InvoiceExportService
   alias MyApp.InvoiceService
   alias MyApp.Schemas.Invoice
 
@@ -36,6 +37,7 @@ defmodule MyApp.Exporter do
 
       {:error, reason} = err ->
         record_failure_on_invoice(invoice, reason)
+        InvoiceExportService.record_failure(invoice, reason)
         err
     end
   end
@@ -44,15 +46,8 @@ defmodule MyApp.Exporter do
   defp extract_pennylane_id(%{"id" => id}) when is_integer(id), do: {:ok, Integer.to_string(id)}
   defp extract_pennylane_id(_response), do: {:error, :missing_pennylane_id}
 
-  defp persist_success(%Invoice{} = db_invoice, pennylane_id) do
-    db_invoice
-    |> Invoice.changeset(%{
-      exported: true,
-      foreign_id: pennylane_id,
-      failure_reason: nil
-    })
-    |> InvoiceService.update()
-  end
+  defp persist_success(%Invoice{} = db_invoice, pennylane_id),
+    do: InvoiceExportService.mark_success(db_invoice, pennylane_id)
 
   defp record_failure_on_invoice(%Invoice{id: id}, reason) when is_integer(id) do
     text = format_failure_reason(reason)
