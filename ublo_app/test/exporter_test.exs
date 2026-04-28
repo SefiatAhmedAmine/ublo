@@ -47,11 +47,11 @@ defmodule ExporterTest do
                {:error, InvoiceErrors.pdf_path_required()}
     end
 
-    test "accepts an invoice with a remote PDF name reference" do
+    test "rejects an invoice that only has a remote name (local source can't resolve it)" do
       inv = insert_invoice!(%{pdf_path: nil, name: "spaces/invoices/invoice.pdf"})
 
-      assert {:ok, %Invoice{id: id}} = InvoiceService.fetch_exportable_invoice(inv)
-      assert id == inv.id
+      assert InvoiceService.fetch_exportable_invoice(inv) ==
+               {:error, InvoiceErrors.pdf_path_required()}
     end
 
     test "accepts eligible row from DB" do
@@ -108,16 +108,16 @@ defmodule ExporterTest do
       end)
 
       assert Exporter.export_invoice(inv) ==
-               {:error, "Pennylane response is missing invoice id"}
+               {:error, InvoiceErrors.pennylane_response_missing_id()}
 
       from_db = InvoiceService.get!(inv.id)
       assert from_db.exported == false
-      assert from_db.failure_reason == "Pennylane response is missing invoice id"
+      assert from_db.failure_reason == InvoiceErrors.pennylane_response_missing_id()
 
       assert [attempt] = InvoiceExportService.list_for_invoice(inv.id)
       assert attempt.status == :failed
       assert attempt.attempts == 1
-      assert attempt.error == "Pennylane response is missing invoice id"
+      assert attempt.error == InvoiceErrors.pennylane_response_missing_id()
     end
 
     test "returns error when PDF path is set but file is missing" do
@@ -142,6 +142,46 @@ defmodule ExporterTest do
 
       assert InvoiceService.get!(inv.id).failure_reason ==
                InvoiceErrors.invoice_not_completed()
+    end
+
+    test "client raising File.Error mid-upload is recorded as a failure, not a crash" do
+      path = write_temp_pdf!()
+      inv = insert_invoice!(%{pdf_path: path})
+
+      Mox.expect(MyApp.PennylaneClientMock, :send_invoice, fn ^path, _api_key ->
+        raise File.Error, action: "stream", reason: :enoent, path: path
+      end)
+
+      assert {:error, msg} = Exporter.export_invoice(inv)
+      assert String.starts_with?(msg, InvoiceErrors.cannot_read_pdf_prefix())
+
+      from_db = InvoiceService.get!(inv.id)
+      assert from_db.exported == false
+      assert from_db.failure_reason == msg
+
+      assert [attempt] = InvoiceExportService.list_for_invoice(inv.id)
+      assert attempt.status == :failed
+      assert attempt.attempts == 1
+      assert attempt.error == msg
+    end
+
+    test "client raising an unexpected exception is recorded as unexpected_error failure" do
+      path = write_temp_pdf!()
+      inv = insert_invoice!(%{pdf_path: path})
+
+      Mox.expect(MyApp.PennylaneClientMock, :send_invoice, fn ^path, _api_key ->
+        raise "boom"
+      end)
+
+      assert {:error, "Pennylane unexpected error"} = Exporter.export_invoice(inv)
+
+      from_db = InvoiceService.get!(inv.id)
+      assert from_db.exported == false
+      assert from_db.failure_reason == "Pennylane unexpected error"
+
+      assert [attempt] = InvoiceExportService.list_for_invoice(inv.id)
+      assert attempt.status == :failed
+      assert attempt.error == "Pennylane unexpected error"
     end
 
     test "success clears failure_reason after a previous failure" do

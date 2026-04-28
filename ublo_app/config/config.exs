@@ -13,7 +13,8 @@ config :ublo_app,
   pennylane_client: MyApp.PennylaneClient,
   invoice_pdf_source: MyApp.LocalInvoicePDFSource,
   pennylane_e_invoices_import_url: "https://app.pennylane.com/api/external/v2/e-invoices/imports",
-  pennylane_e_invoice_type: :customer
+  pennylane_e_invoice_type: :customer,
+  pennylane_request_options: [receive_timeout: 15_000]
 
 # Import configuration files
 import_config "#{config_env()}.exs"

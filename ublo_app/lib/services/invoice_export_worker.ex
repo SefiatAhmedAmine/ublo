@@ -82,19 +82,9 @@ defmodule MyApp.InvoiceExportWorker do
   defp normalize_invoice_id(_), do: {:cancel, :invalid_invoice_id}
 
   defp map_exporter_error(reason) when is_binary(reason) do
-    cond do
-      MapSet.member?(@non_retryable_errors, reason) ->
-        {:cancel, reason}
-
-      reason == InvoiceErrors.pdf_file_not_found() ->
-        {:error, reason}
-
-      String.starts_with?(reason, InvoiceErrors.cannot_read_pdf_prefix()) ->
-        {:error, reason}
-
-      true ->
-        {:error, reason}
-    end
+    if MapSet.member?(@non_retryable_errors, reason),
+      do: {:cancel, reason},
+      else: {:error, reason}
   end
 
   defp map_exporter_error(reason), do: {:error, reason}

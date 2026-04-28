@@ -119,9 +119,13 @@ defmodule MyApp.InvoiceService do
     end
   end
 
-  defp has_pdf_reference?(%Invoice{pdf_path: path}) when is_binary(path) and path != "", do: true
-  defp has_pdf_reference?(%Invoice{name: name}) when is_binary(name) and name != "", do: true
-  defp has_pdf_reference?(%Invoice{}), do: false
+  defp has_pdf_reference?(%Invoice{} = invoice) do
+    pdf_source().exportable?(invoice)
+  end
+
+  defp pdf_source do
+    Application.get_env(:ublo_app, :invoice_pdf_source, MyApp.LocalInvoicePDFSource)
+  end
 
   defp completed_transition?(%Ecto.Changeset{} = changeset) do
     Ecto.Changeset.get_change(changeset, :state) == :completed and

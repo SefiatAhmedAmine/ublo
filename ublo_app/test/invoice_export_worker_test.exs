@@ -54,6 +54,34 @@ defmodule MyApp.InvoiceExportWorkerTest do
       assert msg == InvoiceErrors.invoice_not_completed()
     end
 
+    test "Pennylane client-side rejection is non-retryable" do
+      path = write_temp_pdf!()
+      inv = insert_invoice!(%{pdf_path: path})
+
+      Mox.expect(MyApp.PennylaneClientMock, :send_invoice, fn ^path, _api_key ->
+        {:error, {:bad_request, %{"error" => "bad payload"}}}
+      end)
+
+      assert {:cancel, msg} = perform_job(InvoiceExportWorker, %{invoice_id: inv.id})
+      assert msg == InvoiceErrors.pennylane_bad_request()
+    end
+
+    test "client raising File.Error during upload returns retryable error, not a crash" do
+      path = write_temp_pdf!()
+      inv = insert_invoice!(%{pdf_path: path})
+
+      Mox.expect(MyApp.PennylaneClientMock, :send_invoice, fn ^path, _api_key ->
+        raise File.Error, action: "stream", reason: :enoent, path: path
+      end)
+
+      assert {:error, msg} = perform_job(InvoiceExportWorker, %{invoice_id: inv.id})
+      assert String.starts_with?(msg, InvoiceErrors.cannot_read_pdf_prefix())
+
+      from_db = InvoiceService.get!(inv.id)
+      assert from_db.exported == false
+      assert from_db.failure_reason == msg
+    end
+
     test "missing PDF file returns error tuple for retries" do
       inv =
         insert_invoice!(%{

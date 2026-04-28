@@ -11,6 +11,24 @@ defmodule MyApp.LocalInvoicePDFSourceTest do
     assert LocalInvoicePDFSource.resolve_pdf_path(%Invoice{pdf_path: path}) == {:ok, path}
   end
 
+  describe "exportable?/1" do
+    test "true when pdf_path is a non-empty binary" do
+      assert LocalInvoicePDFSource.exportable?(%Invoice{pdf_path: "/tmp/x.pdf"})
+    end
+
+    test "false when pdf_path is missing" do
+      refute LocalInvoicePDFSource.exportable?(%Invoice{pdf_path: nil})
+      refute LocalInvoicePDFSource.exportable?(%Invoice{pdf_path: ""})
+    end
+
+    test "false when only the remote name is set (local source can't fetch it)" do
+      refute LocalInvoicePDFSource.exportable?(%Invoice{
+               pdf_path: nil,
+               name: "spaces/invoices/x.pdf"
+             })
+    end
+  end
+
   test "requires a local pdf_path for the local implementation" do
     assert LocalInvoicePDFSource.resolve_pdf_path(%Invoice{pdf_path: nil}) ==
              {:error, InvoiceErrors.pdf_path_required()}

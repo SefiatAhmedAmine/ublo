@@ -1,21 +1,18 @@
-# MyApp
+# Ublo Pennylane Export
 
-**TODO: Add description**
+Elixir service for exporting completed invoice notices to Pennylane through an
+Oban-backed queue.
 
-## Installation
+## Pennylane Configuration
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `ublo_app` to your list of dependencies in `mix.exs`:
+Set `PENNYLANE_API_KEY` in the runtime environment for real exports. The default
+endpoint is Pennylane's e-invoice import endpoint:
 
-```elixir
-def deps do
-  [
-    {:ublo_app, "~> 0.1.0"}
-  ]
-end
-```
+- `PENNYLANE_API_KEY`: bearer token used by `MyApp.PennylaneClient`.
+- `:pennylane_e_invoices_import_url`: configured in `ublo_app/config/config.exs`.
+- `:pennylane_request_options`: Req options, including upload timeout.
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/ublo_app>.
+When an invoice transitions to `:completed`, `InvoiceService.update/1` enqueues
+an export job if the invoice is a non-exported `:custom_invoice_notice` with a
+PDF reference. Export attempts are recorded in `invoice_exports`.
 

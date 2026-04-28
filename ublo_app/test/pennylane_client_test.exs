@@ -53,6 +53,20 @@ defmodule MyApp.PennylaneClientTest do
              PennylaneClient.send_invoice(path, "bad-token")
   end
 
+  test "missing PDF at upload time returns {:error, _} instead of raising", %{
+    bypass: bypass,
+    path: path
+  } do
+    File.rm!(path)
+
+    Bypass.stub(bypass, "POST", "/api/external/v2/e-invoices/imports", fn conn ->
+      Plug.Conn.resp(conn, 200, ~s({"id":"unused"}))
+    end)
+
+    result = PennylaneClient.send_invoice(path, "test-api-key")
+    assert match?({:error, _}, result), "expected {:error, _}, got #{inspect(result)}"
+  end
+
   test "maps network failures to transient_network", %{path: path} do
     Application.put_env(
       :ublo_app,

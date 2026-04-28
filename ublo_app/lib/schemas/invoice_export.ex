@@ -29,5 +29,14 @@ defmodule MyApp.Schemas.InvoiceExport do
     |> cast(attrs, @cast_fields)
     |> validate_required(@required_fields)
     |> validate_number(:attempts, greater_than: 0)
+    |> validate_failed_has_error()
+    |> unique_constraint([:invoice_id, :attempts], error_key: :attempts)
+  end
+
+  defp validate_failed_has_error(changeset) do
+    case get_field(changeset, :status) do
+      :failed -> validate_required(changeset, [:error])
+      _ -> changeset
+    end
   end
 end

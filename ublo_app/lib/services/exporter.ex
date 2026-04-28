@@ -2,7 +2,9 @@ defmodule MyApp.Exporter do
   @moduledoc false
 
   alias MyApp.InvoiceExportService
+  alias MyApp.InvoiceErrors
   alias MyApp.InvoiceService
+  alias MyApp.Repo
   alias MyApp.Schemas.Invoice
 
   @doc """
@@ -62,8 +64,8 @@ defmodule MyApp.Exporter do
       row ->
         _ =
           row
-          |> Invoice.changeset(%{failure_reason: text})
-          |> InvoiceService.update()
+          |> Ecto.Changeset.change(%{failure_reason: text})
+          |> Repo.update()
 
         :ok
     end
@@ -88,11 +90,19 @@ defmodule MyApp.Exporter do
   end
 
   defp api_key do
-    Application.fetch_env!(:ublo_app, :pennylane_api_key)
+    Application.get_env(:ublo_app, :pennylane_api_key, "")
   end
 
   defp send_to_pennylane(pdf_path) do
-    client_module().send_invoice(pdf_path, api_key())
+    try do
+      client_module().send_invoice(pdf_path, api_key())
+    rescue
+      e in File.Error ->
+        {:error, {:pdf_unavailable, Exception.message(e)}}
+
+      e ->
+        {:error, {:unexpected_error, Exception.message(e)}}
+    end
   end
 
   defp client_module do
@@ -103,20 +113,25 @@ defmodule MyApp.Exporter do
     Application.get_env(:ublo_app, :invoice_pdf_source, MyApp.LocalInvoicePDFSource)
   end
 
-  defp pennylane_error_message(:missing_api_key), do: "Pennylane API key is missing"
-  defp pennylane_error_message(:invalid_arguments), do: "Invalid Pennylane request arguments"
+  defp pennylane_error_message(:missing_api_key), do: InvoiceErrors.pennylane_api_key_missing()
+
+  defp pennylane_error_message(:invalid_arguments),
+    do: InvoiceErrors.pennylane_invalid_arguments()
 
   defp pennylane_error_message(:missing_pennylane_id),
-    do: "Pennylane response is missing invoice id"
+    do: InvoiceErrors.pennylane_response_missing_id()
+
+  defp pennylane_error_message({:pdf_unavailable, msg}),
+    do: InvoiceErrors.cannot_read_pdf(msg)
 
   defp pennylane_error_message({:bad_request, _}),
-    do: "Pennylane rejected the request payload"
+    do: InvoiceErrors.pennylane_bad_request()
 
-  defp pennylane_error_message({:unauthorized, _}), do: "Pennylane authorization failed"
-  defp pennylane_error_message({:forbidden, _}), do: "Pennylane access forbidden"
+  defp pennylane_error_message({:unauthorized, _}), do: InvoiceErrors.pennylane_unauthorized()
+  defp pennylane_error_message({:forbidden, _}), do: InvoiceErrors.pennylane_forbidden()
 
   defp pennylane_error_message({:invalid_payload, _}),
-    do: "Pennylane invoice payload is invalid"
+    do: InvoiceErrors.pennylane_invalid_payload()
 
   defp pennylane_error_message({:transient_network, _}),
     do: "Pennylane network error"
