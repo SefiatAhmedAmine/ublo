@@ -43,11 +43,12 @@ defmodule MyApp.InvoiceService do
       %Invoice{type: type} when type != :custom_invoice_notice ->
         {:error, InvoiceErrors.invoice_not_custom_notice()}
 
-      %Invoice{pdf_path: path} when path in [nil, ""] ->
-        {:error, InvoiceErrors.pdf_path_required()}
-
       %Invoice{} = db ->
-        {:ok, db}
+        if has_pdf_reference?(db) do
+          {:ok, db}
+        else
+          {:error, InvoiceErrors.pdf_path_required()}
+        end
     end
   end
 
@@ -98,7 +99,7 @@ defmodule MyApp.InvoiceService do
       invoice.type != :custom_invoice_notice ->
         {:error, InvoiceErrors.invoice_not_custom_notice()}
 
-      invoice.pdf_path in [nil, ""] ->
+      not has_pdf_reference?(invoice) ->
         {:error, InvoiceErrors.pdf_path_required()}
 
       invoice.state == :failed ->
@@ -111,6 +112,10 @@ defmodule MyApp.InvoiceService do
         :ok
     end
   end
+
+  defp has_pdf_reference?(%Invoice{pdf_path: path}) when is_binary(path) and path != "", do: true
+  defp has_pdf_reference?(%Invoice{name: name}) when is_binary(name) and name != "", do: true
+  defp has_pdf_reference?(%Invoice{}), do: false
 
   defp transition_to_completed_if_needed(_repo, %Invoice{state: :completed} = invoice) do
     {:ok, invoice}

@@ -1,7 +1,6 @@
 defmodule MyApp.Exporter do
   @moduledoc false
 
-  alias MyApp.InvoiceErrors
   alias MyApp.InvoiceService
   alias MyApp.Schemas.Invoice
 
@@ -12,8 +11,8 @@ defmodule MyApp.Exporter do
   def export_invoice(%Invoice{} = invoice) do
     result =
       with {:ok, db_invoice} <- InvoiceService.fetch_exportable_invoice(invoice),
-           :ok <- verify_pdf_readable(db_invoice.pdf_path),
-           {:ok, response} <- send_to_pennylane(db_invoice.pdf_path),
+           {:ok, pdf_path} <- pdf_source().resolve_pdf_path(db_invoice),
+           {:ok, response} <- send_to_pennylane(pdf_path),
            {:ok, pennylane_id} <- extract_pennylane_id(response),
            {:ok, exported} <- persist_success(db_invoice, pennylane_id) do
         {:ok, exported}
@@ -38,14 +37,6 @@ defmodule MyApp.Exporter do
       {:error, reason} = err ->
         record_failure_on_invoice(invoice, reason)
         err
-    end
-  end
-
-  defp verify_pdf_readable(path) do
-    case File.read(path) do
-      {:ok, _} -> :ok
-      {:error, :enoent} -> {:error, InvoiceErrors.pdf_file_not_found()}
-      {:error, reason} -> {:error, InvoiceErrors.cannot_read_pdf(reason)}
     end
   end
 
@@ -113,9 +104,15 @@ defmodule MyApp.Exporter do
     Application.get_env(:ublo_app, :pennylane_client, MyApp.PennylaneClient)
   end
 
+  defp pdf_source do
+    Application.get_env(:ublo_app, :invoice_pdf_source, MyApp.LocalInvoicePDFSource)
+  end
+
   defp pennylane_error_message(:missing_api_key), do: "Pennylane API key is missing"
   defp pennylane_error_message(:invalid_arguments), do: "Invalid Pennylane request arguments"
-  defp pennylane_error_message(:missing_pennylane_id), do: "Pennylane response is missing invoice id"
+
+  defp pennylane_error_message(:missing_pennylane_id),
+    do: "Pennylane response is missing invoice id"
 
   defp pennylane_error_message({:bad_request, _}),
     do: "Pennylane rejected the request payload"

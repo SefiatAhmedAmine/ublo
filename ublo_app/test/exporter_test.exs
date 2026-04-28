@@ -46,6 +46,13 @@ defmodule ExporterTest do
                {:error, InvoiceErrors.pdf_path_required()}
     end
 
+    test "accepts an invoice with a remote PDF name reference" do
+      inv = insert_invoice!(%{pdf_path: nil, name: "spaces/invoices/invoice.pdf"})
+
+      assert {:ok, %Invoice{id: id}} = InvoiceService.fetch_exportable_invoice(inv)
+      assert id == inv.id
+    end
+
     test "accepts eligible row from DB" do
       path = write_temp_pdf!()
       inv = insert_invoice!(%{pdf_path: path})

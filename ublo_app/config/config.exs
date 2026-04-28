@@ -11,6 +11,7 @@ config :ublo_app, Oban,
 
 config :ublo_app,
   pennylane_client: MyApp.PennylaneClient,
+  invoice_pdf_source: MyApp.LocalInvoicePDFSource,
   pennylane_e_invoices_import_url: "https://app.pennylane.com/api/external/v2/e-invoices/imports",
   pennylane_e_invoice_type: :customer
 
