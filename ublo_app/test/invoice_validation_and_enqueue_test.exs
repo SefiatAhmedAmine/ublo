@@ -112,6 +112,63 @@ defmodule MyApp.InvoiceCompleteAndEnqueueTest do
     end
   end
 
+  describe "update/1 validation lifecycle" do
+    test "transitioning to completed enqueues an export job" do
+      path = write_temp_pdf!()
+
+      inv =
+        insert_invoice!(%{
+          state: :draft,
+          pdf_path: path
+        })
+
+      assert {:ok, updated} =
+               inv
+               |> Invoice.changeset(%{state: :completed})
+               |> InvoiceService.update()
+
+      assert updated.state == :completed
+      assert_enqueued(worker: InvoiceExportWorker, args: %{invoice_id: inv.id})
+    end
+
+    test "updating an already completed invoice does not enqueue again" do
+      path = write_temp_pdf!()
+
+      inv =
+        insert_invoice!(%{
+          state: :completed,
+          pdf_path: path
+        })
+
+      assert {:ok, updated} =
+               inv
+               |> Invoice.changeset(%{customer_name: "Updated customer"})
+               |> InvoiceService.update()
+
+      assert updated.customer_name == "Updated customer"
+      refute_enqueued(worker: InvoiceExportWorker)
+    end
+
+    test "transitioning a non-exportable invoice does not enqueue" do
+      path = write_temp_pdf!()
+
+      inv =
+        insert_invoice!(%{
+          state: :draft,
+          type: :rent_receipt,
+          pdf_path: path
+        })
+
+      assert {:ok, updated} =
+               inv
+               |> Invoice.changeset(%{state: :completed})
+               |> InvoiceService.update()
+
+      assert updated.state == :completed
+      refute_enqueued(worker: InvoiceExportWorker)
+    end
+  end
+
   defp insert_invoice!(overrides) do
     defaults = %{
       number: "INV-#{System.unique_integer([:positive])}",

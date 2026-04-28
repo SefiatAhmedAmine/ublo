@@ -17,7 +17,13 @@ defmodule MyApp.InvoiceService do
 
   def get!(id), do: Repo.get!(Invoice, id)
 
-  def update(%Ecto.Changeset{} = changeset), do: Repo.update(changeset)
+  def update(%Ecto.Changeset{} = changeset) do
+    if completed_transition?(changeset) do
+      update_completed_and_enqueue_export(changeset)
+    else
+      Repo.update(changeset)
+    end
+  end
 
   def get_invoices_not_exported_by_state_and_type(state, type) do
     Repo.all(
@@ -116,6 +122,35 @@ defmodule MyApp.InvoiceService do
   defp has_pdf_reference?(%Invoice{pdf_path: path}) when is_binary(path) and path != "", do: true
   defp has_pdf_reference?(%Invoice{name: name}) when is_binary(name) and name != "", do: true
   defp has_pdf_reference?(%Invoice{}), do: false
+
+  defp completed_transition?(%Ecto.Changeset{} = changeset) do
+    Ecto.Changeset.get_change(changeset, :state) == :completed and
+      Map.get(changeset.data, :state) != :completed
+  end
+
+  defp update_completed_and_enqueue_export(%Ecto.Changeset{} = changeset) do
+    Multi.new()
+    |> Multi.update(:invoice, changeset)
+    |> Multi.merge(fn %{invoice: invoice} ->
+      if auto_exportable_after_validation?(invoice) do
+        Multi.new()
+        |> Oban.insert(:export_job, InvoiceExportWorker.new(%{invoice_id: invoice.id}))
+      else
+        Multi.new()
+        |> Multi.run(:export_job, fn _repo, _changes -> {:ok, :none} end)
+      end
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{invoice: invoice}} -> {:ok, invoice}
+      {:error, _operation, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  defp auto_exportable_after_validation?(%Invoice{} = invoice) do
+    invoice.exported == false and invoice.state == :completed and
+      invoice.type == :custom_invoice_notice and has_pdf_reference?(invoice)
+  end
 
   defp transition_to_completed_if_needed(_repo, %Invoice{state: :completed} = invoice) do
     {:ok, invoice}
