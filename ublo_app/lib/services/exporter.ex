@@ -13,8 +13,9 @@ defmodule MyApp.Exporter do
     result =
       with {:ok, db_invoice} <- InvoiceService.fetch_exportable_invoice(invoice),
            :ok <- verify_pdf_readable(db_invoice.pdf_path),
-           {:ok, _response} <- send_to_pennylane(db_invoice.pdf_path),
-           {:ok, exported} <- persist_success(db_invoice) do
+           {:ok, response} <- send_to_pennylane(db_invoice.pdf_path),
+           {:ok, pennylane_id} <- extract_pennylane_id(response),
+           {:ok, exported} <- persist_success(db_invoice, pennylane_id) do
         {:ok, exported}
       else
         {:error, %Ecto.Changeset{} = cs} ->
@@ -48,11 +49,15 @@ defmodule MyApp.Exporter do
     end
   end
 
-  defp persist_success(%Invoice{} = db_invoice) do
+  defp extract_pennylane_id(%{"id" => id}) when is_binary(id) and id != "", do: {:ok, id}
+  defp extract_pennylane_id(%{"id" => id}) when is_integer(id), do: {:ok, Integer.to_string(id)}
+  defp extract_pennylane_id(_response), do: {:error, :missing_pennylane_id}
+
+  defp persist_success(%Invoice{} = db_invoice, pennylane_id) do
     db_invoice
     |> Invoice.changeset(%{
       exported: true,
-      foreign_id: "stub-#{db_invoice.id}",
+      foreign_id: pennylane_id,
       failure_reason: nil
     })
     |> InvoiceService.update()
@@ -110,6 +115,7 @@ defmodule MyApp.Exporter do
 
   defp pennylane_error_message(:missing_api_key), do: "Pennylane API key is missing"
   defp pennylane_error_message(:invalid_arguments), do: "Invalid Pennylane request arguments"
+  defp pennylane_error_message(:missing_pennylane_id), do: "Pennylane response is missing invoice id"
 
   defp pennylane_error_message({:bad_request, _}),
     do: "Pennylane rejected the request payload"

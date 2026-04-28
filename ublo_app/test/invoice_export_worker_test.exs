@@ -16,7 +16,7 @@ defmodule MyApp.InvoiceExportWorkerTest do
 
       from_db = InvoiceService.get!(inv.id)
       assert from_db.exported == true
-      assert from_db.foreign_id == "stub-#{inv.id}"
+      assert from_db.foreign_id == "mocked"
     end
 
     test "second run on already-exported invoice is :ok and does not change foreign_id" do

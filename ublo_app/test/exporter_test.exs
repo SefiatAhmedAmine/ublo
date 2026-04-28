@@ -71,17 +71,33 @@ defmodule ExporterTest do
       assert updated.exported == true
     end
 
-    test "marks exported and sets stub foreign_id when PDF exists" do
+    test "marks exported and stores Pennylane foreign_id when PDF exists" do
       path = write_temp_pdf!()
       inv = insert_invoice!(%{pdf_path: path})
 
       assert {:ok, %Invoice{} = updated} = Exporter.export_invoice(inv)
       assert updated.exported == true
-      assert updated.foreign_id == "stub-#{inv.id}"
+      assert updated.foreign_id == "mocked"
 
       from_db = InvoiceService.get!(inv.id)
       assert from_db.exported == true
-      assert from_db.foreign_id == "stub-#{inv.id}"
+      assert from_db.foreign_id == "mocked"
+    end
+
+    test "records failure when Pennylane success response has no id" do
+      path = write_temp_pdf!()
+      inv = insert_invoice!(%{pdf_path: path})
+
+      Mox.expect(MyApp.PennylaneClientMock, :send_invoice, fn ^path, _api_key ->
+        {:ok, %{}}
+      end)
+
+      assert Exporter.export_invoice(inv) ==
+               {:error, "Pennylane response is missing invoice id"}
+
+      from_db = InvoiceService.get!(inv.id)
+      assert from_db.exported == false
+      assert from_db.failure_reason == "Pennylane response is missing invoice id"
     end
 
     test "returns error when PDF path is set but file is missing" do
